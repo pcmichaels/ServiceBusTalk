@@ -66,15 +66,20 @@ namespace ServiceBusTalk.CorrlationIdDemo
             _correlationId = Guid.NewGuid().ToString();
             Console.WriteLine($"Correlation Id {_correlationId}");
             await SendMessage("test-queue", "What is the greatest band of all time?");
-            await ReadMessage();
+            await ReadMessage("reply-queue");
         }
 
-        private static async Task ReadMessage()
+        private static async Task ReadMessage(string queue)
         {
-            var queueClient = new QueueClient(_connectionString, "test-queue");
+            var queueClient = new QueueClient(_connectionString, queue);
 
-            var messageHandlerOptions = new MessageHandlerOptions(ExceptionHandler);
-            queueClient.RegisterMessageHandler(handleMessage, messageHandlerOptions);
+            var messageHandlerOptions = new MessageHandlerOptions(ExceptionHandler)
+            {
+                AutoComplete = false
+            };
+            queueClient.RegisterMessageHandler(
+                (message, cancellationToken) => handleMessage(queueClient, message, cancellationToken), 
+                messageHandlerOptions);
 
             await _taskCompletionSource.Task;
         }
@@ -85,7 +90,7 @@ namespace ServiceBusTalk.CorrlationIdDemo
             return Task.CompletedTask;
         }
 
-        private static Task handleMessage(Message message, CancellationToken cancellation)
+        private static async Task handleMessage(QueueClient client, Message message, CancellationToken cancellation)
         {
             string messageBody = Encoding.UTF8.GetString(message.Body);
             Console.WriteLine("Message received: {0}", messageBody);
@@ -93,18 +98,20 @@ namespace ServiceBusTalk.CorrlationIdDemo
             if (message.CorrelationId == _correlationId)
             {
                 Console.WriteLine("Received MATCHING reply");
+                await client.CompleteAsync(message.SystemProperties.LockToken);
+
                 _taskCompletionSource.SetResult(true);
             }
             else
             {
-                Console.WriteLine("Received NOT MATCHING reply");
-            }
-
-            return Task.CompletedTask;
+                Console.WriteLine("Received NOT MATCHING reply");                
+            }            
         }
 
         private static async Task SendMessage(string queueName, string text)
         {
+            Console.WriteLine($"Sending Message: {text} to {queueName}");
+
             var queueClient = new QueueClient(_connectionString, queueName);
             
             var message = new Message(Encoding.UTF8.GetBytes(text));
