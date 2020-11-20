@@ -45,7 +45,8 @@ namespace ServiceBusTalk.TopicsClientDemo
         private static Task ReadMessage(string connectionString)
         {
             string subscriptionName = "TestSubscription";
-            var subscriptionClient = new SubscriptionClient(connectionString, "topictest", subscriptionName);
+            string topicName = "topictest";
+            var subscriptionClient = new SubscriptionClient(connectionString, topicName, subscriptionName);
 
             var messageHandlerOptions = new MessageHandlerOptions(ExceptionHandler);
             subscriptionClient.RegisterMessageHandler(handleMessage, messageHandlerOptions);

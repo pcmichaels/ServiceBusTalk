@@ -13,6 +13,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ServiceBusTalk.TopicsClient
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ServiceBusTalk.CorrelationIdDemo", "ServiceBusTalk.CorrelationIdDemo\ServiceBusTalk.CorrelationIdDemo.csproj", "{07F6B7E3-8AC1-453C-AD8D-70F9EE6B1903}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServiceBusTalk.CorrelationIdDemoTopic", "ServiceBusTalk.CorrelationIdDemoTopic\ServiceBusTalk.CorrelationIdDemoTopic.csproj", "{2EE60288-A975-413A-B7AA-99532049D0BD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -31,6 +33,10 @@ Global
 		{07F6B7E3-8AC1-453C-AD8D-70F9EE6B1903}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{07F6B7E3-8AC1-453C-AD8D-70F9EE6B1903}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{07F6B7E3-8AC1-453C-AD8D-70F9EE6B1903}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2EE60288-A975-413A-B7AA-99532049D0BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2EE60288-A975-413A-B7AA-99532049D0BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2EE60288-A975-413A-B7AA-99532049D0BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2EE60288-A975-413A-B7AA-99532049D0BD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -39,6 +45,7 @@ Global
 		{F4B3A800-DD3A-4E33-AE1D-5728190CF0E7} = {056A0CEA-0269-412A-93F3-2B2B24489A6B}
 		{9BAA3BC5-B9E4-4338-8EC8-811EAF844BD8} = {37F97C5E-7172-47A6-957F-8EADC04E371F}
 		{07F6B7E3-8AC1-453C-AD8D-70F9EE6B1903} = {056A0CEA-0269-412A-93F3-2B2B24489A6B}
+		{2EE60288-A975-413A-B7AA-99532049D0BD} = {37F97C5E-7172-47A6-957F-8EADC04E371F}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {EF5645A5-6615-412B-BDE3-C2F677DBCEC8}

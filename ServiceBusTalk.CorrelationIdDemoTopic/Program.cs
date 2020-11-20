@@ -1,11 +1,12 @@
 ﻿using Microsoft.Azure.ServiceBus;
 using Microsoft.Extensions.Configuration;
 using System;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ServiceBusTalk.CorrlationIdDemo
+namespace ServiceBusTalk.CorrelationIdDemoTopic
 {
     class Program
     {
@@ -55,7 +56,7 @@ namespace ServiceBusTalk.CorrlationIdDemo
             Console.WriteLine("Correlation Id: ");
             string correlationId = Console.ReadLine();
 
-            await SendMessage("reply-queue", "Motorhead", correlationId);
+            await SendMessage("topictest", "MyUniqueClientName", "Motorhead", correlationId);
         }
 
         private static async Task SendMessageAndAwaitReply()
@@ -64,25 +65,37 @@ namespace ServiceBusTalk.CorrlationIdDemo
 
             string correlationId = Guid.NewGuid().ToString();
             Console.WriteLine($"Correlation Id {correlationId}");
-            await SendMessage("test-queue", "What is the greatest band of all time?", correlationId);
-            await ReadMessage("reply-queue", correlationId);
+            await SendMessage("topictest", "", "What is the greatest band of all time?", correlationId);
+            await ReadMessage("topictest", correlationId);
         }
 
-        private static async Task ReadMessage(string queue, string correlationId)
+        private static async Task ReadMessage(string topicName, string correlationId)
         {
-            var queueClient = new QueueClient(_connectionString, queue);
+            string subscriptionName = "ReplySubscription";            
+            var subscriptionClient = new SubscriptionClient(_connectionString, topicName, subscriptionName);
 
+            var rules = await subscriptionClient.GetRulesAsync();
+            if (rules.Any(a => a.Name == "OnlyToMe"))
+                await subscriptionClient.RemoveRuleAsync("OnlyToMe");
+            if (rules.Any(a => a.Name == RuleDescription.DefaultRuleName))
+                await subscriptionClient.RemoveRuleAsync(RuleDescription.DefaultRuleName);
+
+            var filter = new CorrelationFilter();
+            filter.To = "MyUniqueClientName";
+            var ruleDescription = new RuleDescription("OnlyToMe", filter);
+            await subscriptionClient.AddRuleAsync(ruleDescription);
+            
             var messageHandlerOptions = new MessageHandlerOptions(ExceptionHandler)
             {
                 AutoComplete = false
             };
-            queueClient.RegisterMessageHandler(
-                (message, cancellationToken) => handleMessage(correlationId, queueClient, message, cancellationToken), 
+            subscriptionClient.RegisterMessageHandler(
+                (message, cancellationToken) => handleMessage(correlationId, subscriptionClient, message, cancellationToken),
                 messageHandlerOptions);
 
             await _taskCompletionSource.Task;
 
-            await queueClient.UnregisterMessageHandlerAsync(
+            await subscriptionClient.UnregisterMessageHandlerAsync(
                 new TimeSpan(0, 0, 20));
         }
 
@@ -93,7 +106,7 @@ namespace ServiceBusTalk.CorrlationIdDemo
             return Task.CompletedTask;
         }
 
-        private static async Task handleMessage(string correlationId, QueueClient client, Message message, CancellationToken cancellation)
+        private static async Task handleMessage(string correlationId, SubscriptionClient client, Message message, CancellationToken cancellation)
         {
             string messageBody = Encoding.UTF8.GetString(message.Body);
             Console.WriteLine("Message received: {0}", messageBody);
@@ -107,22 +120,23 @@ namespace ServiceBusTalk.CorrlationIdDemo
             }
             else
             {
-                Console.WriteLine("Received NOT MATCHING reply");                
-            }            
+                Console.WriteLine("Received NOT MATCHING reply");
+            }
         }
 
-        private static async Task SendMessage(string queueName, string text, string correlationId)
+        private static async Task SendMessage(string topicName, string to, string text, string correlationId)
         {
-            Console.WriteLine($"Sending Message: {text} to {queueName}");
+            Console.WriteLine($"Sending Message: {text} to {topicName}");
 
-            var queueClient = new QueueClient(_connectionString, queueName);
-            
+            var topicClient = new TopicClient(_connectionString, topicName);
+
             var message = new Message(Encoding.UTF8.GetBytes(text));
             message.CorrelationId = correlationId;
+            message.To = to;
 
-            await queueClient.SendAsync(message);
+            await topicClient.SendAsync(message);
 
-            await queueClient.CloseAsync();
+            await topicClient.CloseAsync();
         }
     }
 }
