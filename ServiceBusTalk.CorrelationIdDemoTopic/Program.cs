@@ -1,4 +1,5 @@
 ﻿using Microsoft.Azure.ServiceBus;
+using Microsoft.Azure.ServiceBus.Core;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.Linq;
@@ -66,7 +67,7 @@ namespace ServiceBusTalk.CorrelationIdDemoTopic
             string correlationId = Guid.NewGuid().ToString();
             Console.WriteLine($"Correlation Id {correlationId}");
             await SendMessage("topictest", "", "What is the greatest band of all time?", correlationId);
-            await ReadMessage("topictest", correlationId);
+            await ReadMessage("topictest", correlationId);            
         }
 
         private static async Task ReadMessage(string topicName, string correlationId)

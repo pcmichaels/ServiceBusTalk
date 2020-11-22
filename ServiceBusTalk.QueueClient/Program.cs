@@ -1,4 +1,5 @@
 ﻿using Microsoft.Azure.ServiceBus;
+using Microsoft.Azure.ServiceBus.Core;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.Text;
@@ -22,7 +23,8 @@ namespace ServiceBusTalk.QueueClientDemo
             {
                 Console.WriteLine("Choose Action:");
                 Console.WriteLine("1: Send Messages");
-                Console.WriteLine("2: Receive Messages");
+                Console.WriteLine("2: Receive Messages (Events)");
+                Console.WriteLine("3: Receive Messages (Direct)");
                 Console.WriteLine("0: Exit");
 
                 var key = Console.ReadKey();
@@ -37,14 +39,30 @@ namespace ServiceBusTalk.QueueClientDemo
                         break;
 
                     case ConsoleKey.D2:
+                        await ReadMessageEvent(connectionString);
+                        break;
+
+                    case ConsoleKey.D3:
                         await ReadMessage(connectionString);
                         break;
+
                 }
 
             }
         }
 
-        private static Task ReadMessage(string connectionString)
+        private static async Task ReadMessage(string connectionString)
+        {
+            var messageReceiver = new MessageReceiver(connectionString, "test-queue", ReceiveMode.ReceiveAndDelete);
+            
+            var message = await messageReceiver.ReceiveAsync();
+
+            string messageBody = Encoding.UTF8.GetString(message.Body);            
+
+            Console.WriteLine("Message received: {0}", messageBody);
+        }
+
+        private static Task ReadMessageEvent(string connectionString)
         {
             var queueClient = new QueueClient(connectionString, "test-queue");
 
