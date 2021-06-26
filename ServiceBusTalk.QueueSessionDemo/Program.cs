@@ -1,5 +1,4 @@
-﻿using Microsoft.Azure.ServiceBus;
-using Microsoft.Azure.ServiceBus.Core;
+﻿using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.Text;
@@ -9,6 +8,9 @@ namespace ServiceBusTalk.QueueSessionDemo
 {
     class Program
     {
+        private static string QUEUE_NAME = "queue-session-demo";
+        private static ServiceBusClient _serviceBusClient;
+
         static async Task Main(string[] args)
         {
             IConfiguration configuration = new ConfigurationBuilder()
@@ -17,6 +19,7 @@ namespace ServiceBusTalk.QueueSessionDemo
                .Build();
 
             string connectionString = configuration.GetValue<string>("ServiceBusConnectionString");
+            _serviceBusClient = new ServiceBusClient(connectionString);
 
             while (true)
             {
@@ -36,52 +39,51 @@ namespace ServiceBusTalk.QueueSessionDemo
                         return;
 
                     case ConsoleKey.D1:
-                        await SendMessage(connectionString, "Message", "session1");
-                        await SendMessage(connectionString, "NoiseMessage", "session2");
+                        await SendMessage("Message", "session1");
+                        await SendMessage("NoiseMessage", "session2");
                         break;
 
                     case ConsoleKey.D2:
-                        await ReadMessage(connectionString, "session1");
+                        await ReadMessage("session1");
                         break;
 
                     case ConsoleKey.D3:
-                        await SendMessage(connectionString, "High noon oh I'd sell my soul for water, Nine years worth of breaking my back", "session1Send");
-                        await ReadMessage(connectionString, "session2Reply");
+                        await SendMessage("High noon oh I'd sell my soul for water, Nine years worth of breaking my back", "session1Send");
+                        await ReadMessage("session2Reply");
                         break;
 
                     case ConsoleKey.D4:
-                        await ReadMessage(connectionString, "session1Send");
+                        await ReadMessage("session1Send");
                         break;
 
                     case ConsoleKey.D5:
-                        await SendMessage(connectionString, "Stargazer, Rainbow", "session2Reply");
+                        await SendMessage("Stargazer, Rainbow", "session2Reply");
                         break;
 
                 }
             }
         }
 
-        private static async Task SendMessage(string connectionString, string messageText, string sessionId)
+        private static async Task SendMessage(string messageText, string sessionId)
         {
-            var queueClient = new QueueClient(connectionString, "session-queue-test");
+            var messageSender = _serviceBusClient.CreateSender(QUEUE_NAME);            
 
             string messageBody = $"{DateTime.Now}: {messageText} ({Guid.NewGuid()})";
-            var message = new Message(Encoding.UTF8.GetBytes(messageBody));
+            var message = new ServiceBusMessage(messageBody);
             message.SessionId = sessionId;
 
-            await queueClient.SendAsync(message);
-            await queueClient.CloseAsync();
+            await messageSender.SendMessageAsync(message);
+            await messageSender.CloseAsync();
         }
 
-        private static async Task ReadMessage(string connectionString, string sessionId)
+        private static async Task ReadMessage(string sessionId)
         {            
-            var sessionClient = new SessionClient(connectionString, "session-queue-test");
-            var session = await sessionClient.AcceptMessageSessionAsync(sessionId);
+            var sessionReceiver = await _serviceBusClient.AcceptNextSessionAsync(QUEUE_NAME, sessionId);
+            var message = await sessionReceiver.ReceiveMessageAsync();
 
-            var message = await session.ReceiveAsync();
-            await session.CompleteAsync(message.SystemProperties.LockToken);
+            string messageBody = message.Body.ToString();
 
-            string messageBody = Encoding.UTF8.GetString(message.Body);
+            await sessionReceiver.CompleteMessageAsync(message);
 
             Console.WriteLine("Message received: {0}", messageBody);
         }

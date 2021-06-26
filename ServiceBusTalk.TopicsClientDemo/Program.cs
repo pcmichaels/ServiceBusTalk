@@ -1,14 +1,17 @@
-﻿using Microsoft.Azure.ServiceBus;
+﻿using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Configuration;
 using System;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace ServiceBusTalk.TopicsClientDemo
 {
     class Program
     {
+        private static string TOPIC_NAME = "topic-client-demo";
+        private static string SUBSCRIPTION_NAME = "TestSubscription";
+        private static ServiceBusClient _serviceBusClient;
+        private static ServiceBusProcessor _serviceBusProcessor;
+
         static async Task Main(string[] args)
         {
             IConfiguration configuration = new ConfigurationBuilder()
@@ -17,12 +20,17 @@ namespace ServiceBusTalk.TopicsClientDemo
                .Build();
 
             string connectionString = configuration.GetValue<string>("ServiceBusConnectionString");
+            _serviceBusClient = new ServiceBusClient(connectionString);
+            _serviceBusProcessor = _serviceBusClient.CreateProcessor(TOPIC_NAME, SUBSCRIPTION_NAME);
+            _serviceBusProcessor.ProcessMessageAsync += handleMessage;
+            _serviceBusProcessor.ProcessErrorAsync += ExceptionHandler;
 
             while (true)
             {
                 Console.WriteLine("Choose Action:");
                 Console.WriteLine("1: Send Messages");
                 Console.WriteLine("2: Receive Messages");
+                Console.WriteLine("3: Stop Receive Messages");
                 Console.WriteLine("0: Exit");
                 var key = Console.ReadKey();
 
@@ -32,54 +40,57 @@ namespace ServiceBusTalk.TopicsClientDemo
                         return;
 
                     case ConsoleKey.D1:
-                        await SendMessage(connectionString, 100);
+                        await SendMessage(100);
                         break;
 
                     case ConsoleKey.D2:
-                        await ReadMessage(connectionString);
+                        await StartReadMessage();
                         break;
+
+                    case ConsoleKey.D3:
+                        await StopReadMessage();
+                        break;
+
                 }
             }
         }
 
-        private static Task ReadMessage(string connectionString)
+        private static async Task StopReadMessage()
         {
-            string subscriptionName = "TestSubscription";
-            string topicName = "topictest";
-            var subscriptionClient = new SubscriptionClient(connectionString, topicName, subscriptionName);
-
-            var messageHandlerOptions = new MessageHandlerOptions(ExceptionHandler);
-            subscriptionClient.RegisterMessageHandler(handleMessage, messageHandlerOptions);
-
-            return Task.CompletedTask;
+            await _serviceBusProcessor.StopProcessingAsync();
         }
 
-        private static Task ExceptionHandler(ExceptionReceivedEventArgs arg)
+        private static async Task StartReadMessage()
+        {
+            await _serviceBusProcessor.StartProcessingAsync();            
+        }
+
+        private static Task ExceptionHandler(ProcessErrorEventArgs args)
         {
             Console.WriteLine("Something bad happened!");
             return Task.CompletedTask;
         }
 
-        private static Task handleMessage(Message message, CancellationToken cancellation)
+        private static Task handleMessage(ProcessMessageEventArgs args)
         {
-            string messageBody = Encoding.UTF8.GetString(message.Body);
+            string messageBody = args.Message.Body.ToString();
             Console.WriteLine("Message received: {0}", messageBody);
 
             return Task.CompletedTask;
         }
 
-        private static async Task SendMessage(string connectionString, int count)
-        {            
-            var topicClient = new TopicClient(connectionString, "topictest");
+        private static async Task SendMessage(int count)
+        {
+            var sender = _serviceBusClient.CreateSender(TOPIC_NAME);            
 
             for (int i = 1; i <= count; i++)
             {
                 string messageBody = $"{DateTime.Now}: Hello Everybody! ({Guid.NewGuid()})";
-                var message = new Message(Encoding.UTF8.GetBytes(messageBody));
+                var message = new ServiceBusMessage(messageBody);
 
-                await topicClient.SendAsync(message);
+                await sender.SendMessageAsync(message);
             }
-            await topicClient.CloseAsync();
+            await sender.CloseAsync();
         }
 
     }

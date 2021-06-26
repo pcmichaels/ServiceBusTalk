@@ -1,4 +1,4 @@
-﻿using Microsoft.Azure.ServiceBus;
+﻿using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.Text;
@@ -9,8 +9,13 @@ namespace ServiceBusTalk.CorrlationIdDemo
 {
     class Program
     {
+        private static string QUEUE_NAME = "correlation-id-demo-queue";
+        private static string REPLY_QUEUE_NAME = "correlation-id-demo-replyqueue";
+
         private static string _connectionString;
         private static TaskCompletionSource<bool> _taskCompletionSource;
+
+        private static ServiceBusClient _serviceBusClient;        
 
         static async Task Main(string[] args)
         {
@@ -20,6 +25,7 @@ namespace ServiceBusTalk.CorrlationIdDemo
                .Build();
 
             _connectionString = configuration.GetValue<string>("ServiceBusConnectionString");
+            _serviceBusClient = new ServiceBusClient(_connectionString);
 
             while (true)
             {
@@ -55,7 +61,7 @@ namespace ServiceBusTalk.CorrlationIdDemo
             Console.WriteLine("Correlation Id: ");
             string correlationId = Console.ReadLine();
 
-            await SendMessage("reply-queue", "Motorhead", correlationId);
+            await SendMessage(REPLY_QUEUE_NAME, "Motorhead", correlationId);
         }
 
         private static async Task SendMessageAndAwaitReply()
@@ -64,44 +70,43 @@ namespace ServiceBusTalk.CorrlationIdDemo
 
             string correlationId = Guid.NewGuid().ToString();
             Console.WriteLine($"Correlation Id {correlationId}");
-            await SendMessage("test-queue", "What is the greatest band of all time?", correlationId);
-            await ReadMessage("reply-queue", correlationId);
+            await SendMessage(QUEUE_NAME, "What is the greatest band of all time?", correlationId);
+            await ReadMessage(REPLY_QUEUE_NAME, correlationId);
         }
 
         private static async Task ReadMessage(string queue, string correlationId)
         {
-            var queueClient = new QueueClient(_connectionString, queue);
-
-            var messageHandlerOptions = new MessageHandlerOptions(ExceptionHandler)
+            var options = new ServiceBusProcessorOptions()
             {
-                AutoComplete = false
+                AutoCompleteMessages = false
             };
-            queueClient.RegisterMessageHandler(
-                (message, cancellationToken) => handleMessage(correlationId, queueClient, message, cancellationToken), 
-                messageHandlerOptions);
+            var messageProcessor = _serviceBusClient.CreateProcessor(queue, options);
 
+            messageProcessor.ProcessMessageAsync += (arg) => handleMessage(arg, correlationId);
+            messageProcessor.ProcessErrorAsync += ExceptionHandler;
+
+            await messageProcessor.StartProcessingAsync();
             await _taskCompletionSource.Task;
-
-            await queueClient.UnregisterMessageHandlerAsync(
-                new TimeSpan(0, 0, 20));
+            await messageProcessor.StopProcessingAsync();
         }
 
-        private static Task ExceptionHandler(ExceptionReceivedEventArgs arg)
+        private static Task ExceptionHandler(ProcessErrorEventArgs arg)
         {
             Console.WriteLine("Something bad happened!");
             Console.WriteLine($"Error: {arg.Exception.Message}");
             return Task.CompletedTask;
         }
 
-        private static async Task handleMessage(string correlationId, QueueClient client, Message message, CancellationToken cancellation)
-        {
-            string messageBody = Encoding.UTF8.GetString(message.Body);
+        private static async Task handleMessage(ProcessMessageEventArgs arg, string correlationId)
+        {            
+            string messageBody = arg.Message.Body.ToString();
             Console.WriteLine("Message received: {0}", messageBody);
 
-            if (message.CorrelationId == correlationId)
+            
+            if (arg.Message.CorrelationId == correlationId)
             {
                 Console.WriteLine("Received MATCHING reply");
-                await client.CompleteAsync(message.SystemProperties.LockToken);
+                await arg.CompleteMessageAsync(arg.Message);                
 
                 _taskCompletionSource.SetResult(true);
             }
@@ -115,14 +120,13 @@ namespace ServiceBusTalk.CorrlationIdDemo
         {
             Console.WriteLine($"Sending Message: {text} to {queueName}");
 
-            var queueClient = new QueueClient(_connectionString, queueName);
-            
-            var message = new Message(Encoding.UTF8.GetBytes(text));
+            var sender = _serviceBusClient.CreateSender(queueName);                        
+            var message = new ServiceBusMessage(text);
             message.CorrelationId = correlationId;
 
-            await queueClient.SendAsync(message);
+            await sender.SendMessageAsync(message);
 
-            await queueClient.CloseAsync();
+            await sender.CloseAsync();
         }
     }
 }
